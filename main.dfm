@@ -1,6 +1,6 @@
 object FormMetrick: TFormMetrick
-  Left = 199
-  Top = 171
+  Left = 220
+  Top = 168
   BorderIcons = [biSystemMenu, biMinimize]
   BorderStyle = bsSingle
   Caption = 

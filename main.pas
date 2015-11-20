@@ -7,7 +7,7 @@ uses
   Dialogs, StdCtrls, XPMan, RegExpr, PerlRegEx, Grids, Math, VistaAltFixUnit;
 
 type
-  TArrayOfFuction = array of String;
+  TArrayOfFuctionalParts = array of String;
   TFormMetrick = class(TForm)
     XPManifest: TXPManifest;
     ButtonOpenFile: TButton;
@@ -35,12 +35,12 @@ type
     procedure FillingStringGrid();
     procedure ClearStringGrid();
     procedure DeleteExpressions(var inputText: string; searchExpression: string);
-    procedure FormattingText(var inputText: string);
+    procedure FormattingText(var inputText: string; var arrayFunctionalParts: TArrayOfFuctionalParts);
     procedure FindingExpressions(searchExpression: String; var inputText: String; var StringGrid: TStringGrid; otherFunction: Boolean);
     procedure Finding(var inputText: string);
     procedure CalculationValues();
     procedure CorrectExpression(var expression: String);
-    procedure PartitionOnFunctions(var inputText: String; var arrayFunction: TArrayOfFuction);
+    procedure PartitionOnFunctionalParts(var inputText: String; searchExpression: String; var arrayFunctionalParts: TArrayOfFuctionalParts);
     procedure AddInStringGrid(RowCountInStart: integer; expression: String; StringGrid: TStringGrid);
   public
     { Public declarations }
@@ -182,22 +182,37 @@ begin
   end;
 end;
 
-procedure TFormMetrick.DeleteExpressions(var inputText: string; searchExpression: string);
+procedure TFormMetrick.DeleteExpressions(var inputText: String; searchExpression: String);
 var
-  RegExpr: TRegExpr;
+  RegExpr: TPerlRegEx;
 begin
-  RegExpr := TRegExpr.Create;
-  RegExpr.Expression := searchExpression;
-  if (RegExpr.Exec(inputText)) then
+  RegExpr := TPerlRegEx.Create;
+  RegExpr.Options := [preSingleLine, preMultiLine];
+  RegExpr.RegEx := searchExpression;
+  RegExpr.Subject := inputText;
+  RegExpr.Compile;
+  if (RegExpr.Match) then
+  begin
+    RegExpr.Replacement := ' ';
     repeat
-    until (not RegExpr.ExecNext);
-  inputText := RegExpr.Replace(inputText, ' ');
+      RegExpr.ReplaceAll;
+    until (not RegExpr.MatchAgain);
+    inputText := RegExpr.Subject;
+  end;
+  RegExpr.Destroy;
 end;
 
-procedure TFormMetrick.FormattingText(var inputText: string);
+procedure TFormMetrick.FormattingText(var inputText: string; var arrayFunctionalParts: TArrayOfFuctionalParts);
+const
+  REGEX_COMMENTS = '(\/\*.*?\*\/)|(\/\/.*?\n)';
+  REGEX_IMPORTED_FILES = '((?<=import)[^\n\r]*)';
+  REGEX_PARTITION_JAVA = '(\b(public\s*|private\s*|protected\s*)?(static\s*|final\s*)?([Ll]ist|class|char|int|long|String|float|double|boolean|void)\s*[\w]*\s*?(\([^\{\;]*?)?{)';
+  REGEX_PARTITION_JAVASCRIPT = '((var(?!\w)\s+[\w]+\s+=\s+function\([^\{\;]*?{)|([\w.]+\s+=\s+function\([^\{\;]*?{)|(function\s\$?[\w]+\([^\{\;]*?{)|([\w]+\s*?:\s*?function\([^\{\;]*?{))';
 begin
-  DeleteExpressions(inputText, '(\/\*(.*?)\*\/)|(\/\/(.*?)\n)');  // удаление комментариев
-  DeleteExpressions(inputText, '(#include\s*?\<[\w\/]{0,}\.?[\w]?>)'); // удаление директивы #include
+  DeleteExpressions(inputText, REGEX_COMMENTS);
+  DeleteExpressions(inputText, REGEX_IMPORTED_FILES);
+  PartitionOnFunctionalParts(inputText, REGEX_PARTITION_JAVA, arrayFunctionalParts);
+  PartitionOnFunctionalParts(inputText, REGEX_PARTITION_JAVASCRIPT, arrayFunctionalParts);
 end;
 
 procedure TFormMetrick.CorrectExpression(var expression: String);
@@ -208,17 +223,15 @@ begin
     expression := expression + ' while';
 end;
 
-procedure TFormMetrick.PartitionOnFunctions(var inputText: String; var arrayFunction: TArrayOfFuction);
+procedure TFormMetrick.PartitionOnFunctionalParts(var inputText: String; searchExpression: String; var arrayFunctionalParts: TArrayOfFuctionalParts);
 var
   RegExp: TPerlRegEx;
   sizeArray, positionStart, i, counterSymbol: Integer;
-const
-  searchExpression: String = '(\b(signed |unsigned )?(short |long )?(char|int|float|double|bool|void)\s*[\w]*\s*?\([^\{\;]*?{)';
 begin
   RegExp := TPerlRegEx.Create;
   RegExp.Subject := inputText;
   RegExp.RegEx := searchExpression;
-  sizeArray := 0;
+  sizeArray := Length(arrayFunctionalParts);
   if (RegExp.Match) then
     repeat
       RegExp.Free;
@@ -228,7 +241,7 @@ begin
       if (RegExp.Match) then
       begin
         inc(sizeArray);
-        SetLength(arrayFunction, sizeArray);
+        SetLength(arrayFunctionalParts, sizeArray);
         positionStart := RegExp.GroupOffsets[0];
         i := RegExp.MatchedLength - 1;
         counterSymbol := 1;
@@ -240,12 +253,12 @@ begin
           if (inputText[positionStart + i] = '}') then
             dec(counterSymbol);
         end;
-        arrayFunction[sizeArray - 1] := Copy(inputText, positionStart, i + 1);
+        arrayFunctionalParts[sizeArray - 1] := Copy(inputText, positionStart, i + 1);
         Delete(inputText, positionStart, i + 1);
       end;
     until not RegExp.MatchAgain;
-  SetLength(arrayFunction, sizeArray + 1);
-  arrayFunction[sizeArray] := inputText;
+  SetLength(arrayFunctionalParts, sizeArray + 1);
+  arrayFunctionalParts[sizeArray] := inputText;
   RegExp.Free;
 end;
 
@@ -300,22 +313,21 @@ end;
 
 procedure TFormMetrick.Finding(var inputText: string);
 begin
-  FindingExpressions('(("[^\r\n]{0,}")|(''[^\r\n]{0,}''))', inputText, StringGridOperands, true); // строковые константы
-  FindingExpressions('(\b[\w\s]{0,}\?[\w\s]{0,}\:[\w\s]{0,}\b)', inputText, stringGridOperators, false); // тернарный оператор
-  FindingExpressions('(\+=|-=|\*=|\/=|%=|&=|\|=|\^=|<<=|>>=)', inputText, stringGridOperators, false); // операторы составного присваивания
-  FindingExpressions('(\*|->\*?|\.\*?)', inputText, StringGridOperators, false); //операторы работы с указателями и челнами класса
-  FindingExpressions('((\~|&|\||\^|<<|>>))', inputText, stringGridOperators, false); // операторы побитовые
-  FindingExpressions('((={2}|!=|>=?|<=?))', inputText, StringGridOperators, false); //операторы сравнения
+  FindingExpressions('("[^\r\n]{0,}")|(''[^\r\n\'']{0,}'')', inputText, StringGridOperands, true); // строковые константы
+  FindingExpressions('(\b[\w\s]*?\?[\w\s]*?\:[\w\s]*?\b)|\?', inputText, stringGridOperators, false); // тернарный оператор
+  FindingExpressions('(\+=|-=|\*=|\/=|%=|&=|\|=|\^=|<<=|>>>=|>>=)', inputText, stringGridOperators, false); // операторы составного присваивания
+  FindingExpressions('(\.)', inputText, StringGridOperators, false); // обращение к методам и переменным класса
   FindingExpressions('(&&|\|\|)', inputText, StringGridOperators, false); //операторы логические
-  FindingExpressions('(=|\+{1,2}|-{2}|-|\*|\/|%|!{2})', inputText, StringGridOperators, false);  // арифметические операторы
+  FindingExpressions('(\~|&|\||\^|<<|>>>?)', inputText, stringGridOperators, false); // операторы побитовые
+  FindingExpressions('(={2,3}|!={1,2}|>=?|<=?)', inputText, StringGridOperators, false); //операторы сравнения
+  FindingExpressions('(=|\+{1,2}|-{1,2}|\*|\/|%|!{2})', inputText, StringGridOperators, false);  // арифметические операторы
   FindingExpressions('(!|&|\||\,|\;)', inputText, StringGridOperators, false);  // остальные операторы
-  FindingExpressions('(\d+)', inputText, StringGridOperands, true); // цыфровые константы
+  FindingExpressions('(?<![\w])(-?\d+\.?\d*?[Ff]?(?![A-Za-z]))|(0[Xx][\w]+)', inputText, StringGridOperands, true); // цыфровые константы
   FindingExpressions('(\b(for|do|while))', inputText, stringGridOperators, false); // поиск циклов
-  FindingExpressions('(\b[\w\_]*\s*?\()', inputText, stringGridOperators, false); // поиск функций
-  FindingExpressions('(\b(const )?(signed |unsigned )?(short |long )?(char|int|float|double|bool|void))', inputText, stringGridOperators, false); // зарезервированные слова
-  FindingExpressions('((struct\s{0,}[\w\_]{1,})|typedef|return|else|case|break|continue)', inputText, stringGridOperators, false); // зарезервированные слова
-  DeleteExpressions(inputText, '(#define)'); //удаление директивы
-  FindingExpressions('(\b[\w\_]{1,}\b)', inputText, stringGridOperands, true); // поиск операндов
+  FindingExpressions('(\b[\w]* *?\()|([\w]+(?=:))', inputText, stringGridOperators, false); // поиск функций
+  FindingExpressions('(\b(public\s*|private\s*|protected\s*)?(static\s*|final\s*)?([Ll]ist|class|char|int|long|String|float|double|boolean|void|var(?!\w)))', inputText, stringGridOperators, false); // объявление переменных и классов
+  FindingExpressions('((struct\s{0,}[\w\_]{1,})|return|else|case|switch|break|continue|import|new|(?!\w)try(?!\w)|catch|finaly|typeof|(?!\w)in(?!\w))', inputText, stringGridOperators, false); // зарезервированные слова
+  FindingExpressions('(\b[\w]+\b)', inputText, stringGridOperands, true); // поиск операндов
   StringGridOperators.RowCount := StringGridOperators.RowCount - 1;
   StringGridOperands.RowCount := StringGridOperands.RowCount - 1;
 end;
@@ -365,17 +377,19 @@ end;
 procedure TFormMetrick.ButtonExecutClick(Sender: TObject);
 var
   inputText: string;
-  arrayFunction: TArrayOfFuction;
+  arrayFunctionalParts: TArrayOfFuctionalParts;
   i: integer;
 begin
   ClearStringGrid;
   inputText := MemoInputText.Text;
-  FormattingText(inputText);
-  PartitionOnFunctions(inputText, arrayFunction);
-  for  i := 0 to length(arrayFunction) - 1 do
-    Finding(arrayFunction[i]);
+  FormattingText(inputText, arrayFunctionalParts);
+  //MemoInputText.Clear;
+  for  i := 0 to length(arrayFunctionalParts) - 1 do
+  begin
+    Finding(arrayFunctionalParts[i]);
+    //MemoInputText.Lines.Add(arrayFunctionalParts[i]);
+  end;
   CalculationValues;
-  //MemoInputText.Text := arrayFunction[length(arrayFunction) - 1];
 end;
 
 end.
