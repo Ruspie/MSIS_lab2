@@ -199,7 +199,7 @@ begin
     until (not RegExpr.MatchAgain);
     inputText := RegExpr.Subject;
   end;
-  RegExpr.Destroy;
+  RegExpr.Free;
 end;
 
 procedure TFormMetrick.FormattingText(var inputText: string; var arrayFunctionalParts: TArrayOfFuctionalParts);
@@ -234,10 +234,11 @@ begin
   sizeArray := Length(arrayFunctionalParts);
   if (RegExp.Match) then
     repeat
-      RegExp.Free;
-      RegExp := TPerlRegEx.Create;
+      //RegExp.Free;
+      //RegExp := TPerlRegEx.Create;
       RegExp.Subject := inputText;
       RegExp.RegEx := searchExpression;
+      RegExp.Compile;
       if (RegExp.Match) then
       begin
         inc(sizeArray);
@@ -257,8 +258,6 @@ begin
         Delete(inputText, positionStart, i + 1);
       end;
     until not RegExp.MatchAgain;
-  SetLength(arrayFunctionalParts, sizeArray + 1);
-  arrayFunctionalParts[sizeArray] := inputText;
   RegExp.Free;
 end;
 
@@ -322,13 +321,13 @@ begin
   FindingExpressions('(={2,3}|!={1,2}|>=?|<=?)', inputText, StringGridOperators, false); //операторы сравнения
   FindingExpressions('(=|\+{1,2}|-{1,2}|\*|\/|%|!{2})', inputText, StringGridOperators, false);  // арифметические операторы
   FindingExpressions('(!|&|\||\,|\;)', inputText, StringGridOperators, false);  // остальные операторы
-  FindingExpressions('(?<![\w])(-?\d+\.?\d*?[Ff]?(?![A-Za-z]))|(0[Xx][\w]+)', inputText, StringGridOperands, true); // цыфровые константы
+  FindingExpressions('(?<![\w])(-?\d+\.?\d+[Ff]?(?![A-Za-z]))|(0[XxBb][\w]+)', inputText, StringGridOperands, true); // цыфровые константы
   FindingExpressions('(\b(for|do|while))', inputText, stringGridOperators, false); // поиск циклов
   FindingExpressions('(\b[\w\.]+ *?\()|([\w]+(?=:))  ', inputText, stringGridOperators, false); // поиск функций   //     (\b[\w]* *?\()|([\w]+(?=:))
-  FindingExpressions('(\.)', inputText, StringGridOperators, false); // обращение к методам и переменным класса
   FindingExpressions('(\b(public\s*|private\s*|protected\s*)?(static\s*|final\s*)?([Ll]ist|class|char|int|long|String|float|double|boolean|void|var(?!\w)))', inputText, stringGridOperators, false); // объявление переменных и классов
-  FindingExpressions('((struct\s{0,}[\w\_]{1,})|return|else|case|switch|break|continue|import|new|(?!\w)try(?!\w)|catch|finaly|typeof|(?!\w)in(?!\w))', inputText, stringGridOperators, false); // зарезервированные слова
-  FindingExpressions('(\b[\w]+\b)', inputText, stringGridOperands, true); // поиск операндов
+  FindingExpressions('((struct\s{0,}[\w\_]{1,})|return|else|case|switch|break|continue|import|new|(?!\w)try(?!\w)|catch|finaly|typeof|(?!\w)in(?!\w)|function)', inputText, stringGridOperators, false); // зарезервированные слова
+  FindingExpressions('(\b[\w.]+\b)', inputText, stringGridOperands, true); // поиск операндов
+  FindingExpressions('(\.)', inputText, StringGridOperators, false); // обращение к методам и переменным класса
   StringGridOperators.RowCount := StringGridOperators.RowCount - 1;
   StringGridOperands.RowCount := StringGridOperands.RowCount - 1;
 end;
@@ -371,7 +370,7 @@ begin
   begin
     for i := 1 to StringGridMetrick.RowCount - 1 do
       StringGridMetrick.Cells[2,i] := '-';
-    Application.MessageBox('Данный текст не является программным кодом на языке С, пожалуйста, проверьте данные.','Внимание!', MB_OK + MB_TOPMOST);
+    Application.MessageBox('Данный текст не является программным кодом на языке Java или JavaScript, пожалуйста, проверьте данные.','Внимание!', MB_OK + MB_TOPMOST);
   end;
 end;
 
@@ -385,6 +384,8 @@ begin
   inputText := MemoInputText.Text;
   FormattingText(inputText, arrayFunctionalParts);
   //MemoInputText.Clear;
+  SetLength(arrayFunctionalParts, Length(arrayFunctionalParts) + 1);
+  arrayFunctionalParts[Length(arrayFunctionalParts) - 1] := inputText;
   for  i := 0 to length(arrayFunctionalParts) - 1 do
   begin
     Finding(arrayFunctionalParts[i]);
