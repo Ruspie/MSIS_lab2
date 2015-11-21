@@ -234,8 +234,6 @@ begin
   sizeArray := Length(arrayFunctionalParts);
   if (RegExp.Match) then
     repeat
-      //RegExp.Free;
-      //RegExp := TPerlRegEx.Create;
       RegExp.Subject := inputText;
       RegExp.RegEx := searchExpression;
       RegExp.Compile;
