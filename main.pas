@@ -206,7 +206,7 @@ procedure TFormMetrick.FormattingText(var inputText: string; var arrayFunctional
 const
   REGEX_COMMENTS = '(\/\*.*?\*\/)|(\/\/.*?\n)';
   REGEX_IMPORTED_FILES = '((?<=import)[^\n\r]*)';
-  REGEX_PARTITION_JAVA = '(\b(public\s*|private\s*|protected\s*)?(static\s*|final\s*)?([Ll]ist|class|char|int|long|String|float|double|boolean|void)\s*[\w]*\s*?(\([^\{\;]*?)?{)';
+  REGEX_PARTITION_JAVA = '(\b(public\s*|private\s*|protected\s*)?(static\s*|final\s*)?([Ll]ist|char|int|long|String|float|double|boolean|void)\s*[\w]*\s*?(\([^\{\;]*?)?{)';
   REGEX_PARTITION_JAVASCRIPT = '((var(?!\w)\s+[\w]+\s+=\s+function\([^\{\;]*?{)|([\w.]+\s+=\s+function\([^\{\;]*?{)|(function\s\$?[\w]+\([^\{\;]*?{)|([\w]+\s*?:\s*?function\([^\{\;]*?{))';
 begin
   DeleteExpressions(inputText, REGEX_COMMENTS);
@@ -314,9 +314,9 @@ end;
 procedure TFormMetrick.Finding(var inputText: string);
 begin
   FindingExpressions('("[^\r\n]{0,}")|(''[^\r\n\'']{0,}'')', inputText, StringGridOperands, true); // строковые константы
-  FindingExpressions('(\b[\w\s]*?\?[\w\s]*?\:[\w\s]*?\b)|\?', inputText, stringGridOperators, false); // тернарный оператор
+  FindingExpressions('(\b[\w\s]*?\?[\w\s]*?\:[\w\s]*?\b)', inputText, stringGridOperators, false); // тернарный оператор
   FindingExpressions('(\+=|-=|\*=|\/=|%=|&=|\|=|\^=|<<=|>>>=|>>=)', inputText, stringGridOperators, false); // операторы составного присваивания
-  FindingExpressions('(\.)', inputText, StringGridOperators, false); // обращение к методам и переменным класса
+ // FindingExpressions('(\.)', inputText, StringGridOperators, false); // обращение к методам и переменным класса
   FindingExpressions('(&&|\|\|)', inputText, StringGridOperators, false); //операторы логические
   FindingExpressions('(\~|&|\||\^|<<|>>>?)', inputText, stringGridOperators, false); // операторы побитовые
   FindingExpressions('(={2,3}|!={1,2}|>=?|<=?)', inputText, StringGridOperators, false); //операторы сравнения
@@ -324,7 +324,8 @@ begin
   FindingExpressions('(!|&|\||\,|\;)', inputText, StringGridOperators, false);  // остальные операторы
   FindingExpressions('(?<![\w])(-?\d+\.?\d*?[Ff]?(?![A-Za-z]))|(0[Xx][\w]+)', inputText, StringGridOperands, true); // цыфровые константы
   FindingExpressions('(\b(for|do|while))', inputText, stringGridOperators, false); // поиск циклов
-  FindingExpressions('(\b[\w]* *?\()|([\w]+(?=:))', inputText, stringGridOperators, false); // поиск функций
+  FindingExpressions('(\b[\w\.]+ *?\()|([\w]+(?=:))  ', inputText, stringGridOperators, false); // поиск функций   //     (\b[\w]* *?\()|([\w]+(?=:))
+  FindingExpressions('(\.)', inputText, StringGridOperators, false); // обращение к методам и переменным класса
   FindingExpressions('(\b(public\s*|private\s*|protected\s*)?(static\s*|final\s*)?([Ll]ist|class|char|int|long|String|float|double|boolean|void|var(?!\w)))', inputText, stringGridOperators, false); // объявление переменных и классов
   FindingExpressions('((struct\s{0,}[\w\_]{1,})|return|else|case|switch|break|continue|import|new|(?!\w)try(?!\w)|catch|finaly|typeof|(?!\w)in(?!\w))', inputText, stringGridOperators, false); // зарезервированные слова
   FindingExpressions('(\b[\w]+\b)', inputText, stringGridOperands, true); // поиск операндов
